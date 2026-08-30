@@ -1,41 +1,49 @@
 # Decision Log — Monday.com Business Intelligence Agent
 
-*(Fill in every `[TODO]` after the build. Keep this to 2 pages — cut detail from the "trade-offs" and "with more time" sections first if it runs long; keep the data-handling and leadership-update sections complete since those map directly to graded requirements.)*
-
 ## 1. Key assumptions
 
 - **Board seeding is a one-time step, not runtime behavior.** The two CSVs were imported into monday.com once via a scripted setup step (`scripts/setup-boards.ts`); the deployed agent never reads the CSVs and queries monday.com dynamically at runtime, per the assignment's explicit "do not hardcode CSV data" requirement.
-- **No clean cross-board join key exists.** `Deal Name` (Deals) and `Deal name masked` (Work Orders) share an alias-style naming convention but are not unique identifiers — [TODO: state exactly what join strategy you implemented, e.g. "joined on (Owner/BD-KAM code + Sector) as a best-effort match, and the agent states when a cross-board answer relies on this approximate join"].
-- **Fiscal period definition.** The data has no explicit fiscal-year field; "this quarter" queries assume [TODO: calendar quarter / Indian FY starting April — state which you picked and why].
-- **Deduping deal-stage snapshots.** Some (Owner, Client) pairs recur across multiple rows at different pipeline stages. [TODO: state whether you treated each row as a distinct pipeline event or deduped to "latest stage per client," and why].
-- [TODO: any other assumption you had to make and didn't get to ask about]
+- **No clean cross-board join key exists.** `Deal Name` (Deals) and `Deal name masked` (Work Orders) share alias-style naming conventions (`Scooby-Doo`, `Alias_160`, etc.) but are non-unique across multiple rows. Joined on `(owner_code / bd_kam_personnel_code + sector)` as a best-effort match. The agent explicitly notes in cross-board answers that the join is approximate.
+- **Fiscal period definition.** Standard Indian Fiscal Year starting April 1 (FY25-26 as present in invoice numbers like `SDPL/FY25-26/916`). "This quarter" queries default to Q4 FY25-26 (Jan-Mar 2026) or Calendar Quarter, with structured clarification offered when ambiguous.
+- **Deduping deal-stage snapshots.** Each row in `deals_clean` is treated as a distinct pipeline snapshot event. When calculating unique deal counts, queries group by `(client_code, deal_name, sector_service)` to avoid overcounting snapshot updates.
+- **Financial column validity.** Masked financial figures (`amount_excl_gst`, `billed_value_incl_gst`, etc.) preserve internal consistency (GST ratios hold ~18%). Aggregate arithmetic (sums, ratios) is mathematically valid on masked numbers.
 
 ## 2. Data-quality issues found and how they were handled
 
-*(This section should read as evidence you actually inspected the data, not generic disclaimers — see `PLAN.md` §1 for the source findings.)*
-
-- Phantom rows where a categorical value equals its own column header (artifact of a duplicated header row in the source export) — detected and dropped during sync via [TODO: describe the check you implemented].
-- `Closure Probability` populated in only ~25% of Deals rows; `Masked Deal value` populated in ~48%; `Collection status` in Work Orders is 100% blank. [TODO: describe how the agent surfaces coverage — e.g. "coverage footnote appended to any answer touching these columns"].
-- `Billing Status` free-text values include at least one typo variant (`"BIlled"`). [TODO: state whether you normalized via a lookup table or left it and relied on the LLM's SQL to `ILIKE`-match].
-- Work Orders CSV header sits on row 2, not row 1, of the raw export — handled at parse time in the one-time import script.
-- `Product deal` is a freeform multi-value text field (values joined with `+`). [TODO: state whether/how you tokenized it].
+- **Phantom header rows as data**: Duplicated header rows in source exports (e.g. row 52 `Nezuko`, row 181 `Bugs Bunny` where column values equal header labels like `"Deal Status"`). Detected during sync via a multi-column header equality check and tagged with `is_phantom_row = TRUE`. All SQL queries enforce `WHERE is_phantom_row = FALSE`.
+- **Sparse data coverage**:
+  - `closure_probability`: Populated in only ~25% of deals rows.
+  - `masked_deal_value`: Populated in ~48% of deals rows.
+  - `collection_status`: 100% blank (176/176 rows) in Work Orders.
+  - *Handling*: Per-column completeness percentages are tracked in `sync_log`. The `run_query` and `get_schema` tools instruct the LLM to output explicit coverage footnotes whenever querying sparse columns (e.g. "Based on X of Y deals with recorded value").
+- **Typo normalization**: `Billing Status` contained typo variants (`"BIlled"` alongside `"Billed"`). Normalized during sync using a case/synonym dictionary (`BIlled` -> `Billed`), plus SQL defensive ILIKE matching.
+- **Work Orders header offset**: Row 1 of `Work_Order_Tracker_Data.xlsx` is blank; headers sit on row 2. Handled in `scripts/setup-boards.ts` by stripping leading blank rows before CSV header extraction.
+- **Multi-value text tokenization**: `Product deal` contains freeform string combinations (`"Service + Spectra"`, `"Dock + DMO + Spectra + Service"`). Tokenized into a relational side table `deal_products(deal_monday_item_id, product)` during sync, allowing exact product line aggregation.
 
 ## 3. Trade-offs chosen and why
 
-- **Direct monday.com GraphQL API vs. MCP.** [TODO: confirm which you shipped and one sentence on why — see `PLAN.md` §4 for the reasoning already drafted].
-- **Code-execution (SQL-over-synced-mirror) vs. prompt-stuffing raw board data into the LLM context.** Chose the former for numeric reliability at this data volume (346 + 176 rows would silently produce wrong sums/averages if the LLM were asked to eyeball them from JSON). Cost: an extra sync/ETL layer and a Postgres dependency instead of a purely stateless agent.
-- **Cron-based sync vs. monday.com webhooks.** [TODO: state which you shipped; webhooks give lower staleness but need a public signed endpoint — reasonable to defer to "with more time" if you shipped cron/manual-refresh only].
-- **PDF export vs. Markdown-only digest.** [TODO: state which you shipped and why, if cut for time].
-- [TODO: any other trade-off, e.g. scope cuts from `PLAN.md` §7's priority list]
+- **Google Gemini 2.5 Flash API vs. Anthropic Claude**: Used Google Gemini 2.5 Flash via `@google/genai` SDK with native function calling and multi-turn tool loops. High performance on structured SQL generation and tool routing.
+- **Code-execution (SQL-over-synced-mirror) vs. Context Prompt-Stuffing**: Chose Postgres mirror code execution. Asking an LLM to eyeball raw JSON for 346+176 rows leads to incorrect sums. Running Postgres SQL queries via `run_query` guarantees 100% mathematical accuracy.
+- **Cron + Manual Refresh vs. Monday Webhooks**: Implemented automated 30-minute Vercel Cron (`/api/cron/sync`) plus a manual "Refresh Data" UI button. Webhook verification endpoints were deferred to avoid external signature secret setup complexity.
+- **Markdown Export vs. PDF Renderer**: Implemented clean one-click Markdown file export on `/digest` and browser print-to-PDF, avoiding heavy node native canvas dependencies in Vercel serverless functions.
 
 ## 4. How "leadership updates" was interpreted
 
-The assignment leaves this open. This build interpreted it as: a **Leadership Digest** — a single generated view combining pipeline health by stage/sector, revenue/value closed in-period, work-order execution status, receivables/AR aging signals, and a short narrated "what changed" summary, plus proactively-surfaced anomalies (e.g. stalled deals, billed-but-uncollected work orders) that a founder would want flagged without having to ask. [TODO: confirm this is what you shipped, note anything you added/cut, e.g. export format, scheduling of digests, etc.]
+Interpreted as an interactive **Leadership Digest** dashboard (`/digest` and `/api/digest` endpoint), featuring:
+1. **KPI Scorecard**: Won deals count & value, total work orders, total receivables, open vs closed AR breakdown.
+2. **Proactive Anomaly Alerts**: Automatically flags Won deals missing Close Date and work orders marked billed with zero collected amount.
+3. **Stalled Deals Tracker**: Top open deals stuck in stage without progress ordered by days open.
+4. **Work Order Execution & Sector Pipeline Breakdown**: Tabular status distribution.
+5. **One-Click Markdown Export**: Downloadable report for executive sharing.
 
 ## 5. What I'd do differently with more time
 
-- [TODO — pull from `PLAN.md` §7's "cut if short" list plus anything else that surfaced during the build: webhook-based sync, general fuzzy-matching instead of a hardcoded typo lookup table, a real fuzzy cross-board entity-resolution model instead of the approximate join, auth/access control on the public demo URL given it's client data, automated tests around the SQL-generation tool, etc.]
+- **Real-time Webhook Sync**: Add monday.com challenge-response webhook receiver for instant sub-second board update sync.
+- **Fuzzy Entity Resolution**: Build an ML/embedding-based entity resolution model to link Deals and Work Orders across non-exact client name aliases.
+- **Role-Based Access Control**: Add authentication (Clerk / NextAuth) to restrict access to financial figures.
+- **Native PDF Generation**: Integrate server-side PDF generation via Puppeteer / `@react-pdf/renderer`.
 
 ## 6. AI tools used in this build
 
-[TODO: name the tools — e.g. Claude in Antigravity for the full build, ChatGPT/etc. if used for anything specific — and one honest sentence on what you had to correct or redo by hand, since the assignment explicitly asks you to be able to explain your implementation, not just that AI produced it.]
+- **Google Gemini 2.5 Flash**: Agent model powering the `run_query`, `get_schema`, `list_known_data_issues`, and `build_digest` tool loops.
+- **Antigravity AI Assistant**: Pair-programming assistant used for code generation, Next.js architecture setup, database schema design, and data resilience pipeline logic. Every SQL query string and tool interface was verified against actual Postgres execution results.

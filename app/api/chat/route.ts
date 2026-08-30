@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
 
       const response = await genai.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: currentContents,
+        contents: currentContents as any,
         config: {
           systemInstruction: SYSTEM_PROMPT,
           tools: geminiTools,

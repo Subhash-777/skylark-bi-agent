@@ -33,30 +33,51 @@ interface MondayBoard {
   };
 }
 
-export async function mondayGraphQL(query: string): Promise<unknown> {
+export async function mondayGraphQL(query: string, maxRetries = 5): Promise<unknown> {
   const token = process.env.MONDAY_API_TOKEN;
   if (!token) throw new Error('MONDAY_API_TOKEN not set');
 
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': token,
-      'API-Version': '2024-10',
-    },
-    body: JSON.stringify({ query }),
-  });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token,
+          'API-Version': '2024-10',
+        },
+        body: JSON.stringify({ query }),
+      });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Monday.com API error ${res.status}: ${text}`);
-  }
+      if (res.status === 429 || res.status === 503) {
+        if (attempt < maxRetries) {
+          const waitMs = Math.min(2000 * Math.pow(2, attempt), 15000);
+          console.log(`[Monday.com API] Rate limited (${res.status}), waiting ${waitMs}ms before retry ${attempt + 1}/${maxRetries}...`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+          continue;
+        }
+      }
 
-  const json = await res.json() as { data?: unknown; errors?: Array<{ message: string }> };
-  if (json.errors && json.errors.length > 0) {
-    throw new Error(`Monday.com GraphQL errors: ${JSON.stringify(json.errors)}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Monday.com API error ${res.status}: ${text.substring(0, 300)}`);
+      }
+
+      const json = await res.json() as { data?: unknown; errors?: Array<{ message: string }> };
+      if (json.errors && json.errors.length > 0) {
+        throw new Error(`Monday.com GraphQL errors: ${JSON.stringify(json.errors)}`);
+      }
+      return json.data;
+    } catch (err) {
+      if (attempt < maxRetries && String(err).includes('429')) {
+        const waitMs = Math.min(2000 * Math.pow(2, attempt), 15000);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+        continue;
+      }
+      throw err;
+    }
   }
-  return json.data;
+  throw new Error('Max retries exceeded for monday.com GraphQL API');
 }
 
 /**
