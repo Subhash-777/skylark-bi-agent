@@ -1,37 +1,42 @@
-/**
- * /api/chat — Agent loop endpoint using Google Gemini with tool-calling.
- * 
- * Implements PLAN.md §6:
- * - Multi-turn tool-calling loop (get_schema → run_query → narrate)
- * - Streaming responses via SSE
- * - Every number comes from SQL, never from LLM eyeballing raw data
- * - Coverage footnotes for sparse columns
- */
-import { NextRequest } from 'next/server';
 import { GoogleGenAI, Type } from '@google/genai';
 import { getSchema, runQuery, listKnownDataIssues, buildDigest, TOOL_DECLARATIONS } from '@/lib/tools';
 
+const genai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY || '',
+});
+
 const SYSTEM_PROMPT = `You are a Business Intelligence analyst for Skylark Drones, helping leadership understand their deals pipeline and work orders.
 
-CRITICAL RULES:
-1. NEVER compute numbers yourself. ALWAYS use the run_query tool to execute SQL queries for any numerical answer.
-2. Before writing any SQL, call get_schema() to understand the available tables, columns, and data completeness.
-3. When a query touches columns with known low completeness (check via list_known_data_issues), ALWAYS add a coverage footnote like "Based on X of Y deals with recorded values; Z deals have no value recorded."
-4. NEVER silently coerce NULL to 0. NULL means "unknown," not "zero."
-5. Always include WHERE is_phantom_row = FALSE in queries on deals_clean and work_orders_clean.
-6. For cross-board (deals + work orders) questions, note that there's no clean join key — any cross-board analysis uses approximate matching.
-7. When results are naturally chart-shaped (pipeline by stage, revenue by sector), format them as a table AND suggest a chart visualization.
-8. If a user's question is ambiguous (e.g., "this quarter" without fiscal year context, or a sector name that doesn't exactly match), ask a STRUCTURED clarifying question — provide 2-4 specific options from the actual data values.
-9. Financial values are masked but internally consistent. Present them as numbers but note they are masked/representative.
-10. Keep answers concise but include the data coverage footnote when relevant.
+DATABASE SCHEMA & KNOWN ISSUES (Pre-loaded for instant 1-turn query generation):
 
-AVAILABLE TABLES:
-- deals_clean: Deal pipeline data (346 rows, 12+ columns including deal_name, deal_status, deal_stage, masked_deal_value, sector_service, etc.)
-- work_orders_clean: Work order tracker (176 rows, 38+ columns including execution_status, billing_status, financial columns, sector, etc.)
-- deal_products: Tokenized product deals (join on deal_monday_item_id)
-- sync_log: Data completeness stats per column
+TABLE deals_clean (Deals Board, 345 rows):
+  - monday_item_id (TEXT UNIQUE), deal_name (TEXT), owner_code (TEXT), client_code (TEXT)
+  - deal_status (TEXT: Won, Dead, Open, On Hold)
+  - deal_stage (TEXT: A. Lead Generated, B. Pitching, C. Commercial Proposal Submitted, D. Proposal Accepted, E. Execution Started, F. Final Billing, G. Payment Collected, Lost / Abandoned, On Hold)
+  - deal_stage_order (INT: 1-16), sector_service (TEXT: Mining, Renewables, Railways, Powerline, Construction, Others)
+  - masked_deal_value (NUMERIC: 48% populated, 52% NULL)
+  - closure_probability (TEXT: 25% populated, 75% NULL)
+  - close_date (DATE), tentative_close_date (DATE), created_date (DATE)
+  - is_phantom_row (BOOLEAN: filter WHERE is_phantom_row = FALSE)
 
-Start every interaction by understanding the question, then use tools to get accurate data.`;
+TABLE work_orders_clean (Work Orders Board, 176 rows):
+  - monday_item_id (TEXT UNIQUE), deal_name_masked (TEXT), customer_name_code (TEXT)
+  - execution_status (TEXT: Completed, Ongoing, Executed until current month, Not Started, Partial Completed, Pause / struck, Details pending from Client)
+  - billing_status (TEXT: Billed, Unbilled, Partially Billed)
+  - sector (TEXT: Mining, Renewables, Railways, Powerline, Construction, Others)
+  - amount_excl_gst (NUMERIC: 98.8% populated), amount_incl_gst (NUMERIC), billed_value_excl_gst (NUMERIC), collected_amount_incl_gst (NUMERIC), amount_receivable (NUMERIC)
+  - collection_status (TEXT: 100% BLANK/NULL - DO NOT QUERY, use collected_amount_incl_gst instead)
+  - is_phantom_row (BOOLEAN: filter WHERE is_phantom_row = FALSE)
+
+TABLE deal_products (Relational side table):
+  - deal_monday_item_id (TEXT REFERENCES deals_clean(monday_item_id)), product (TEXT)
+
+CRITICAL INSTRUCTIONS:
+1. You already have the schema above. Directly call run_query with your SQL SELECT query in your FIRST turn.
+2. ALWAYS include WHERE is_phantom_row = FALSE in queries on deals_clean and work_orders_clean.
+3. When querying masked_deal_value, ALWAYS add a coverage footnote stating: "Based on X of Y deals with recorded values; Z deals have no value recorded."
+4. Never coerce NULL to 0. Present masked financial values accurately.
+5. Format results as structured markdown tables and suggest a chart visualization when appropriate.`;
 
 // Map tool declarations to Gemini format
 const geminiTools = [{
@@ -63,44 +68,48 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
     case 'list_known_data_issues':
       return await listKnownDataIssues();
     case 'build_digest':
-      return await buildDigest(args.period as string | undefined);
+      return await buildDigest();
     default:
-      return { error: `Unknown tool: ${name}` };
+      throw new Error(`Unknown tool: ${name}`);
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const { messages } = await req.json() as {
-      messages: Array<{ role: string; content: string }>
-    };
+    const { messages } = await req.json();
+
+    if (!messages || !Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: 'Messages array is required' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!process.env.GEMINI_API_KEY) {
-      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'GEMINI_API_KEY is not configured' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    // Convert messages to Gemini format
+    const contents = messages.map((m: { role: string; content: string }) => ({
+      role: m.role === 'user' ? 'user' : 'model',
+      parts: [{ text: m.content }],
+    }));
 
-    // Build conversation history for Gemini
-    const contents: Array<{ role: string; parts: Array<{ text?: string; functionCall?: unknown; functionResponse?: unknown }> }> = [];
-
-    for (const msg of messages) {
-      contents.push({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }],
-      });
-    }
-
-    // Tool-calling loop
-    const toolCalls: Array<{ tool: string; args: Record<string, unknown>; result: unknown }> = [];
     let finalText = '';
+    const executedToolCalls: Array<{
+      tool: string;
+      args: Record<string, unknown>;
+      resultPreview: string;
+    }> = [];
+
+    // Agent execution loop
     let iterations = 0;
     const MAX_ITERATIONS = 8; // Safety limit
 
-    let currentContents = [...contents];
+    let currentContents: any[] = [...contents];
 
     while (iterations < MAX_ITERATIONS) {
       iterations++;
@@ -165,11 +174,20 @@ export async function POST(req: NextRequest) {
           const name = fc.name!;
           const args = (fc.args || {}) as Record<string, unknown>;
 
-          console.log(`[Agent] Tool call: ${name}(${JSON.stringify(args).substring(0, 200)})`);
-          const result = await executeTool(name, args);
-          console.log(`[Agent] Tool result: ${JSON.stringify(result).substring(0, 200)}...`);
+          console.log(`[Agent Tool Call] ${name}(${JSON.stringify(args)})`);
 
-          toolCalls.push({ tool: name, args, result });
+          let result: unknown;
+          try {
+            result = await executeTool(name, args);
+          } catch (toolError) {
+            result = { error: String(toolError) };
+          }
+
+          executedToolCalls.push({
+            tool: name,
+            args,
+            resultPreview: JSON.stringify(result).substring(0, 300),
+          });
 
           functionResponseParts.push({
             functionResponse: {
@@ -179,45 +197,36 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // Add tool results to conversation history
         currentContents.push({
           role: 'user',
-          parts: functionResponseParts as Array<{ functionResponse: unknown }>,
+          parts: functionResponseParts,
         });
       }
 
+      // Extract text content if present
+      const textParts = parts.filter(p => p.text).map(p => p.text).join('\n');
+      if (textParts) {
+        finalText = textParts;
+      }
+
+      // If no function calls, we are done
       if (!hasFunctionCalls) {
-        // Final text response
-        finalText = parts
-          .filter(p => p.text)
-          .map(p => p.text)
-          .join('');
         break;
       }
     }
 
-    if (iterations >= MAX_ITERATIONS && !finalText) {
-      finalText = 'I reached the maximum number of tool calls. Here is what I found so far — please try a more specific question.';
-    }
-
-    // Return the response with tool call audit trail
     return new Response(
       JSON.stringify({
-        content: finalText,
-        toolCalls: toolCalls.map(tc => ({
-          tool: tc.tool,
-          args: tc.args,
-          // Truncate large results for the response
-          resultPreview: JSON.stringify(tc.result).substring(0, 500),
-        })),
+        content: finalText || 'Analysis complete.',
+        toolCalls: executedToolCalls,
       }),
-      {
-        headers: { 'Content-Type': 'application/json' },
-      }
+      { headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (err) {
-    console.error('Chat API error:', err);
+  } catch (error) {
+    console.error('Chat API Error:', error);
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: String(error) }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
