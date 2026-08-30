@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Navbar } from '@/components/Navbar';
 
 interface DigestData {
   period: string;
@@ -97,10 +98,14 @@ export default function DigestPage() {
     loadDigest();
   }, []);
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const exportMarkdown = () => {
     if (!digest) return;
 
-    let md = `# Leadership Digest\n\n`;
+    let md = `# Leadership Digest — Skylark Drones\n\n`;
     md += `**Generated:** ${new Date(digest.generated_at).toLocaleString()}\n\n`;
 
     // Revenue Won
@@ -151,49 +156,28 @@ export default function DigestPage() {
   };
 
   return (
-    <div className="app-container">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="sidebar-logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-            Skylark BI Agent
-          </div>
-        </div>
-        <nav className="sidebar-nav">
-          <a href="/chat" className="nav-link">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            Chat
-          </a>
-          <a href="/digest" className="nav-link active">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 17H7v-7h2m4 0h-2v7h2m4-10H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1z" />
-              <path d="M17 7V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2" />
-            </svg>
-            Leadership Digest
-          </a>
-        </nav>
-      </aside>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', color: 'var(--text-primary)', display: 'flex', flexDirection: 'column' }}>
+      <div className="no-print">
+        <Navbar />
+      </div>
 
-      {/* Main Content */}
-      <main className="main-content">
+      <main className="main-content" style={{ flex: 1 }}>
         <div className="digest-container">
           <div className="digest-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h1 className="digest-title">📊 Leadership Digest</h1>
+              <h1 className="digest-title">📊 Executive Leadership Digest</h1>
               <p className="digest-meta">
                 {digest
                   ? `Generated ${new Date(digest.generated_at).toLocaleString()} • ${digest.period}`
                   : 'Loading...'}
               </p>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="no-print" style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-secondary" onClick={loadDigest} disabled={loading}>
                 {loading ? '⟳ Loading...' : '⟳ Refresh'}
+              </button>
+              <button className="btn btn-secondary" onClick={handlePrint} disabled={!digest}>
+                🖨️ Print / Save PDF
               </button>
               <button className="btn btn-primary" onClick={exportMarkdown} disabled={!digest}>
                 📥 Export Markdown
@@ -203,7 +187,7 @@ export default function DigestPage() {
 
           {error && (
             <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', borderRadius: 8, marginBottom: 24, color: 'var(--danger)' }}>
-              Error: {error}. Make sure data is synced first (click &quot;Refresh Data&quot; in the sidebar on the Chat page).
+              Error: {error}. Make sure data is synced first (click &quot;Refresh Data&quot; in the header).
             </div>
           )}
 
@@ -212,7 +196,7 @@ export default function DigestPage() {
               <div className="loading-dots" style={{ justifyContent: 'center', marginBottom: 16 }}>
                 <span /><span /><span />
               </div>
-              Generating digest...
+              Generating executive digest...
             </div>
           )}
 
