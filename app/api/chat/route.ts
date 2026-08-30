@@ -110,42 +110,42 @@ export async function POST(req: Request) {
     const MAX_ITERATIONS = 8; // Safety limit
 
     let currentContents: any[] = [...contents];
+    const MODEL_FALLBACK_LIST = ['gemini-3.5-flash', 'gemini-3.6-flash'];
 
     while (iterations < MAX_ITERATIONS) {
       iterations++;
 
       let response;
-      let retryCount = 0;
-      const MAX_RETRIES = 3;
+      let modelSuccess = false;
 
-      while (retryCount <= MAX_RETRIES) {
+      for (const modelName of MODEL_FALLBACK_LIST) {
         try {
           response = await genai.models.generateContent({
-            model: 'gemini-3.6-flash',
+            model: modelName,
             contents: currentContents as any,
             config: {
               systemInstruction: SYSTEM_PROMPT,
               tools: geminiTools,
             },
           });
-          break; // Success
+          modelSuccess = true;
+          break; // Succeeded with this model
         } catch (err) {
           const errStr = String(err);
-          if ((errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) && retryCount < MAX_RETRIES) {
-            retryCount++;
-            const backoffMs = retryCount * 3000;
-            console.log(`[Gemini API] Rate limit (429) hit, retrying in ${backoffMs}ms (attempt ${retryCount}/${MAX_RETRIES})...`);
-            await new Promise(resolve => setTimeout(resolve, backoffMs));
-          } else {
-            if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) {
-              return new Response(
-                JSON.stringify({ content: "The Gemini API free tier rate limit was reached (20 requests/min). Please wait ~15-20 seconds before asking your next query." }),
-                { headers: { 'Content-Type': 'application/json' } }
-              );
-            }
-            throw err;
+          console.warn(`[Gemini API] Model ${modelName} failed/rate-limited:`, errStr.substring(0, 100));
+          if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) {
+            // Try next model in fallback list
+            continue;
           }
+          throw err;
         }
+      }
+
+      if (!modelSuccess || !response) {
+        return new Response(
+          JSON.stringify({ content: "Gemini API rate limit reached on free tier. Please wait 15-20 seconds before asking your next query." }),
+          { headers: { 'Content-Type': 'application/json' } }
+        );
       }
 
       const candidate = response?.candidates?.[0];
