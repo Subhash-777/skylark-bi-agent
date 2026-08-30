@@ -129,16 +129,8 @@ export async function POST(req: NextRequest) {
       if (functionCallParts.length > 0) {
         hasFunctionCalls = true;
 
-        // Add model's response to history
-        currentContents.push({
-          role: 'model',
-          parts: parts.map(p => {
-            if (p.functionCall) {
-              return { functionCall: p.functionCall };
-            }
-            return { text: p.text || '' };
-          }),
-        });
+        // Add model's response to history (preserves thoughtSignature and original structure)
+        currentContents.push(candidate.content as any);
 
         // Execute each function call and add results
         const functionResponseParts: Array<{ functionResponse: { name: string; response: unknown } }> = [];
