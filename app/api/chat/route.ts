@@ -58,6 +58,48 @@ const geminiTools = [{
   })),
 }];
 
+// OpenRouter Tools format
+const openRouterTools = [
+  {
+    type: 'function',
+    function: {
+      name: 'run_query',
+      description: 'Execute a read-only SQL query on Postgres database mirror',
+      parameters: {
+        type: 'object',
+        properties: {
+          sql: { type: 'string', description: 'SQL SELECT query statement' }
+        },
+        required: ['sql']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_schema',
+      description: 'Get database schema and table column definitions',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_known_data_issues',
+      description: 'List known data completeness issues and caveats',
+      parameters: { type: 'object', properties: {} }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'build_digest',
+      description: 'Generate Executive Leadership Digest',
+      parameters: { type: 'object', properties: {} }
+    }
+  }
+];
+
 // Execute a tool call
 async function executeTool(name: string, args: Record<string, unknown>): Promise<unknown> {
   switch (name) {
@@ -74,6 +116,105 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
   }
 }
 
+// Fallback agent loop using OpenRouter API
+async function runOpenRouterAgent(userMessages: Array<{ role: string; content: string }>) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENROUTER_API_KEY is not configured in environment variables');
+  }
+
+  const messages: any[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...userMessages.map(m => ({ role: m.role, content: m.content }))
+  ];
+
+  const executedToolCalls: Array<{
+    tool: string;
+    args: Record<string, unknown>;
+    resultPreview: string;
+  }> = [];
+
+  let finalText = '';
+  let iterations = 0;
+  const MAX_ITERATIONS = 6;
+
+  while (iterations < MAX_ITERATIONS) {
+    iterations++;
+
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://skylark-bi-agent-six-dun.vercel.app',
+        'X-Title': 'Skylark BI Agent',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        max_tokens: 1500,
+        tools: openRouterTools,
+        messages: messages,
+      }),
+    });
+
+    const data = await res.json();
+    if (data.error) {
+      throw new Error(`OpenRouter Error: ${data.error.message || JSON.stringify(data.error)}`);
+    }
+
+    const choice = data.choices?.[0];
+    const msg = choice?.message;
+
+    if (!msg) break;
+
+    messages.push(msg);
+
+    if (msg.content) {
+      finalText = msg.content;
+    }
+
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      for (const tc of msg.tool_calls) {
+        const toolName = tc.function.name;
+        let toolArgs: Record<string, unknown> = {};
+        try {
+          toolArgs = JSON.parse(tc.function.arguments || '{}');
+        } catch {
+          toolArgs = {};
+        }
+
+        console.log(`[OpenRouter Tool Call] ${toolName}(${JSON.stringify(toolArgs)})`);
+
+        let result: unknown;
+        try {
+          result = await executeTool(toolName, toolArgs);
+        } catch (err) {
+          result = { error: String(err) };
+        }
+
+        executedToolCalls.push({
+          tool: toolName,
+          args: toolArgs,
+          resultPreview: JSON.stringify(result).substring(0, 300),
+        });
+
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: JSON.stringify(result),
+        });
+      }
+    } else {
+      break; // No tool calls, finished
+    }
+  }
+
+  return {
+    content: finalText || 'Analysis complete.',
+    toolCalls: executedToolCalls,
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
@@ -85,144 +226,116 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'GEMINI_API_KEY is not configured' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
-    }
+    // Attempt Primary Gemini Native Agent first
+    try {
+      if (process.env.GEMINI_API_KEY) {
+        const contents = messages.map((m: { role: string; content: string }) => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
+        }));
 
-    // Convert messages to Gemini format
-    const contents = messages.map((m: { role: string; content: string }) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content }],
-    }));
+        let finalText = '';
+        const executedToolCalls: Array<{
+          tool: string;
+          args: Record<string, unknown>;
+          resultPreview: string;
+        }> = [];
 
-    let finalText = '';
-    const executedToolCalls: Array<{
-      tool: string;
-      args: Record<string, unknown>;
-      resultPreview: string;
-    }> = [];
+        let iterations = 0;
+        const MAX_ITERATIONS = 8;
+        let currentContents: any[] = [...contents];
 
-    // Agent execution loop
-    let iterations = 0;
-    const MAX_ITERATIONS = 8; // Safety limit
+        while (iterations < MAX_ITERATIONS) {
+          iterations++;
 
-    let currentContents: any[] = [...contents];
-    const MODEL_FALLBACK_LIST = ['gemini-3.5-flash', 'gemini-3.6-flash'];
-
-    while (iterations < MAX_ITERATIONS) {
-      iterations++;
-
-      let response;
-      let modelSuccess = false;
-
-      for (const modelName of MODEL_FALLBACK_LIST) {
-        try {
-          response = await genai.models.generateContent({
-            model: modelName,
+          const response = await genai.models.generateContent({
+            model: 'gemini-3.6-flash',
             contents: currentContents as any,
             config: {
               systemInstruction: SYSTEM_PROMPT,
               tools: geminiTools,
             },
           });
-          modelSuccess = true;
-          break; // Succeeded with this model
-        } catch (err) {
-          const errStr = String(err);
-          console.warn(`[Gemini API] Model ${modelName} failed/rate-limited:`, errStr.substring(0, 100));
-          if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) {
-            // Try next model in fallback list
-            continue;
-          }
-          throw err;
-        }
-      }
 
-      if (!modelSuccess || !response) {
-        return new Response(
-          JSON.stringify({ content: "Gemini API rate limit reached on free tier. Please wait 15-20 seconds before asking your next query." }),
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const candidate = response?.candidates?.[0];
-      if (!candidate?.content?.parts) {
-        finalText = 'I was unable to generate a response. Please try again.';
-        break;
-      }
-
-      const parts = candidate.content.parts;
-      let hasFunctionCalls = false;
-
-      // Check for function calls
-      const functionCallParts = parts.filter(p => p.functionCall);
-
-      if (functionCallParts.length > 0) {
-        hasFunctionCalls = true;
-
-        // Add model's response to history (preserves thoughtSignature and original structure)
-        currentContents.push(candidate.content as any);
-
-        // Execute each function call and add results
-        const functionResponseParts: Array<{ functionResponse: { name: string; response: unknown } }> = [];
-
-        for (const part of functionCallParts) {
-          const fc = part.functionCall!;
-          const name = fc.name!;
-          const args = (fc.args || {}) as Record<string, unknown>;
-
-          console.log(`[Agent Tool Call] ${name}(${JSON.stringify(args)})`);
-
-          let result: unknown;
-          try {
-            result = await executeTool(name, args);
-          } catch (toolError) {
-            result = { error: String(toolError) };
+          const candidate = response?.candidates?.[0];
+          if (!candidate?.content?.parts) {
+            break;
           }
 
-          executedToolCalls.push({
-            tool: name,
-            args,
-            resultPreview: JSON.stringify(result).substring(0, 300),
-          });
+          const parts = candidate.content.parts;
+          let hasFunctionCalls = false;
+          const functionCallParts = parts.filter(p => p.functionCall);
 
-          functionResponseParts.push({
-            functionResponse: {
-              name,
-              response: result,
-            },
-          });
+          if (functionCallParts.length > 0) {
+            hasFunctionCalls = true;
+            currentContents.push(candidate.content as any);
+
+            const functionResponseParts: Array<{ functionResponse: { name: string; response: unknown } }> = [];
+
+            for (const part of functionCallParts) {
+              const fc = part.functionCall!;
+              const name = fc.name!;
+              const args = (fc.args || {}) as Record<string, unknown>;
+
+              let result: unknown;
+              try {
+                result = await executeTool(name, args);
+              } catch (toolError) {
+                result = { error: String(toolError) };
+              }
+
+              executedToolCalls.push({
+                tool: name,
+                args,
+                resultPreview: JSON.stringify(result).substring(0, 300),
+              });
+
+              functionResponseParts.push({
+                functionResponse: {
+                  name,
+                  response: result,
+                },
+              });
+            }
+
+            currentContents.push({
+              role: 'user',
+              parts: functionResponseParts,
+            });
+          }
+
+          const textParts = parts.filter(p => p.text).map(p => p.text).join('\n');
+          if (textParts) {
+            finalText = textParts;
+          }
+
+          if (!hasFunctionCalls) {
+            break;
+          }
         }
 
-        // Add tool results to conversation history
-        currentContents.push({
-          role: 'user',
-          parts: functionResponseParts,
-        });
+        if (finalText) {
+          return new Response(
+            JSON.stringify({
+              content: finalText,
+              toolCalls: executedToolCalls,
+            }),
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+        }
       }
-
-      // Extract text content if present
-      const textParts = parts.filter(p => p.text).map(p => p.text).join('\n');
-      if (textParts) {
-        finalText = textParts;
-      }
-
-      // If no function calls, we are done
-      if (!hasFunctionCalls) {
-        break;
-      }
+    } catch (geminiError) {
+      console.warn('[Gemini Native API Error, switching to OpenRouter Fallback]:', String(geminiError).substring(0, 150));
     }
 
+    // Seamless Fallback: Execute via OpenRouter API
+    console.log('[Routing query through OpenRouter API fallback...]');
+    const openRouterResult = await runOpenRouterAgent(messages);
     return new Response(
-      JSON.stringify({
-        content: finalText || 'Analysis complete.',
-        toolCalls: executedToolCalls,
-      }),
+      JSON.stringify(openRouterResult),
       { headers: { 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
     console.error('Chat API Error:', error);
     return new Response(
