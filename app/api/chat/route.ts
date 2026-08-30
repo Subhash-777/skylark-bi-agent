@@ -33,10 +33,11 @@ TABLE deal_products (Relational side table):
 
 CRITICAL INSTRUCTIONS:
 1. You already have the schema above. Directly call run_query with your SQL SELECT query in your FIRST turn.
-2. ALWAYS include WHERE is_phantom_row = FALSE in queries on deals_clean and work_orders_clean.
-3. When querying masked_deal_value, ALWAYS add a coverage footnote stating: "Based on X of Y deals with recorded values; Z deals have no value recorded."
-4. Never coerce NULL to 0. Present masked financial values accurately.
-5. Format results as structured markdown tables and suggest a chart visualization when appropriate.`;
+2. For subjective phrases like "stuck deals" or "longest open", immediately assume unclosed deals (deal_status NOT IN ('Won', 'Dead')) ordered by created_date ASC, execute the SQL query immediately, and present the data table.
+3. ALWAYS include WHERE is_phantom_row = FALSE in queries on deals_clean and work_orders_clean.
+4. When querying masked_deal_value, ALWAYS add a coverage footnote stating: "Based on X of Y deals with recorded values; Z deals have no value recorded."
+5. Never coerce NULL to 0. Present masked financial values accurately.
+6. Format results as structured markdown tables and suggest a chart visualization when appropriate.`;
 
 // Map tool declarations to Gemini format
 const geminiTools = [{
