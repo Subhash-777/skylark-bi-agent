@@ -1,19 +1,27 @@
 # Skylark Drones — Monday.com Business Intelligence Agent
 
-A production-ready AI Agent for querying monday.com Deals Pipeline and Work Order data using natural language, built with Next.js 14, Google Gemini 2.5 Flash, Supabase Postgres, and TypeScript.
+[![Vercel Deployment](https://img.shields.io/badge/Vercel-Hosted_Live-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://skylark-bi-agent.vercel.app)
+[![Tech Stack](https://img.shields.io/badge/Next.js_14-Gemini_2.5_Flash-3b82f6?style=for-the-badge&logo=next.js&logoColor=white)](https://skylark-bi-agent.vercel.app)
+
+A production-hosted AI Agent for querying monday.com Deals Pipeline and Work Order data in natural language, built with Next.js 14, Google Gemini 2.5 Flash (`@google/genai`), Supabase Postgres, and TypeScript.
+
+👉 **Live Hosted Application**: [https://skylark-bi-agent.vercel.app](https://skylark-bi-agent.vercel.app)  
+👉 **Interactive Architecture Explainer**: [https://skylark-bi-agent.vercel.app/about](https://skylark-bi-agent.vercel.app/about)
 
 ---
 
-## 🌟 Key Features
+## 🌟 Key Differentiators & Shipped Features
 
-1. **Code-Execution BI Core (SQL Over Synced Mirror)**: The LLM does **not** compute numbers by eyeballing raw JSON. Instead, it inspects schemas via `get_schema()` and generates parameterized SQL queries executed via `run_query()` against a Postgres mirror synced from monday.com.
-2. **Deterministic Data Cleaning & Resilience**:
-   - **Phantom Header Row Elimination**: Duplicated header rows in source exports (e.g. `Nezuko`, `Bugs Bunny` where values equal header names) are detected and filtered via `is_phantom_row = FALSE`.
+1. **Code-Execution BI Core (SQL Over Synced Mirror)**: The LLM does **not** compute numbers by prompt-stuffing raw JSON. Instead, it inspects schemas via `get_schema()` and generates parameterized SQL queries executed via `run_query()` against a Postgres mirror synced from monday.com.
+2. **First 10-Second First Impression (`/`)**: High-impact landing page featuring live metric scorecards, 4 quick-start query chips that jump directly into `/chat` pre-filled, and architectural highlights.
+3. **Interactive Recharts Visualization**: Structured query outputs automatically render dynamic, interactive Bar and Doughnut charts right inside assistant chat bubbles.
+4. **Deterministic Data Resilience Pipeline**:
+   - **Phantom Header Row Elimination**: Duplicated header rows in source exports (e.g. `Nezuko`, `Bugs Bunny` where values equal header names) are detected and filtered (`is_phantom_row = FALSE`).
    - **Typo Normalization**: Normalizes freeform typos like `"BIlled"` → `"Billed"`.
    - **Multi-Select Tokenization**: Tokenizes freeform `Product deal` strings (`"Service + Spectra"`) into a `deal_products` side table.
-   - **Completeness Footnotes**: Automatically tracks per-column population % in `sync_log` and surfaces coverage warnings for sparse fields (e.g., `Closure Probability` ~25%, `Masked Deal Value` ~48%, `Collection Status` 100% blank).
-3. **Leadership Digest (`/digest`)**: Structured executive summary combining pipeline health by stage & sector, won revenue totals, top stalled open deals, work order execution status, AR receivables aging, and automated anomaly detection (e.g. Won deals without Close Date). One-click Markdown export.
-4. **Interactive Chat UI (`/chat`)**: Dark mode dashboard with tool-calling audit trail (view exact SQL executed), suggested questions, streaming responses, and manual data refresh.
+   - **Coverage & Trust Footnotes**: Automatically tracks per-column population % in `sync_log` and surfaces coverage warnings for sparse fields (e.g., `Closure Probability` ~25%, `Masked Deal Value` ~48%, `Collection Status` 100% blank).
+5. **Executive Leadership Digest (`/digest`)**: Executive scorecard combining pipeline health by stage & sector, won revenue totals, top stalled open deals, work order execution status, AR receivables aging, automated anomaly detection, and **one-click Markdown export + crisp PDF print stylesheet (`window.print()`)**.
+6. **Technical Explainer (`/about`)**: Live version of the Decision Log built into the web app for reviewers, breaking down the tool-calling loop, code-execution rationale, and the data resilience matrix.
 
 ---
 
@@ -23,10 +31,12 @@ A production-ready AI Agent for querying monday.com Deals Pipeline and Work Orde
 ┌─────────────────────────────────────────────────────────────────┐
 │  Next.js 14 (App Router) — Vercel Serverless                     │
 │                                                                 │
-│  /chat                → Conversational BI Interface             │
-│  /digest              → Leadership Digest Dashboard + MD Export │
-│  /api/chat            → Agent loop (Gemini tool-calling)         │
-│  /api/sync            → monday.com → Postgres Sync Pipeline     │
+│  /                    → Hero Landing Page + Pre-filled Query Chips│
+│  /chat                → Conversational BI + Recharts Visualizer │
+│  /digest              → Executive Digest Dashboard + PDF/MD     │
+│  /about               → Technical Explainer & Decision Log      │
+│  /api/chat            → Gemini Tool-Calling Agent Loop          │
+│  /api/sync            → Monday.com → Postgres Sync Pipeline     │
 │  /api/cron/sync       → Vercel Cron (30-min schedule)            │
 └───────────────┬─────────────────────────────┬───────────────────┘
                 │                             │
@@ -82,7 +92,7 @@ The setup script creates the "Deals Pipeline" and "Work Order Tracker" boards on
 npx tsx scripts/setup-boards.ts
 ```
 
-> **Note**: Board seeding is a one-time setup step. The runtime web application never reads local CSVs and queries monday.com dynamically.
+> **Note**: Board seeding is a one-time setup step. The runtime web application never reads local CSVs and queries monday.com dynamically via GraphQL and the Postgres mirror.
 
 ---
 
