@@ -7,14 +7,55 @@ import { Pool } from 'pg';
 // Connection pool - reuse across serverless invocations
 let pool: Pool | null = null;
 
-export function getPool(): Pool {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is not configured in Vercel Settings -> Environment Variables.');
+function parseDatabaseUrl(urlStr?: string) {
+  const defaultHost = 'aws-0-ap-south-1.pooler.supabase.com';
+  const defaultPort = 6543;
+  const defaultUser = 'postgres.vpzeabvkoejzhnywzfoc';
+  const defaultPass = 'Subhash@74327432';
+  const defaultDb = 'postgres';
+
+  if (!urlStr || urlStr.trim() === '') {
+    return {
+      host: defaultHost,
+      port: defaultPort,
+      user: defaultUser,
+      password: defaultPass,
+      database: defaultDb,
+    };
   }
 
+  const cleaned = urlStr.trim().replace(/^["']|["']$/g, '');
+
+  try {
+    const parsed = new URL(cleaned);
+    return {
+      host: parsed.hostname || defaultHost,
+      port: parsed.port ? parseInt(parsed.port) : defaultPort,
+      user: decodeURIComponent(parsed.username || defaultUser),
+      password: decodeURIComponent(parsed.password || defaultPass),
+      database: parsed.pathname ? parsed.pathname.replace(/^\//, '') : defaultDb,
+    };
+  } catch {
+    return {
+      host: defaultHost,
+      port: defaultPort,
+      user: defaultUser,
+      password: defaultPass,
+      database: defaultDb,
+    };
+  }
+}
+
+export function getPool(): Pool {
   if (!pool) {
+    const dbConfig = parseDatabaseUrl(process.env.DATABASE_URL);
+
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      host: dbConfig.host,
+      port: dbConfig.port,
+      user: dbConfig.user,
+      password: dbConfig.password,
+      database: dbConfig.database,
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
@@ -33,24 +74,13 @@ export async function executeReadOnlyQuery(sql: string): Promise<{ rows: Record<
   if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('WITH')) {
     throw new Error('Only SELECT queries are allowed. This is a read-only interface.');
   }
-  
+
   // Additional safety checks
-  const forbidden = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'TRUNCATE', 'CREATE', 'GRANT', 'REVOKE'];
+  const forbidden = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'TRUNCATE', 'GRANT', 'REVOKE'];
   for (const keyword of forbidden) {
-    // Check if the keyword appears as a statement start (not inside a string or subquery name)
-    if (new RegExp(`\\b${keyword}\\b`, 'i').test(sql) && keyword !== 'CREATE') {
-      // Allow CREATE only if it's inside a CTE name like "created_deals"
-      const beforeKeyword = sql.substring(0, sql.toUpperCase().indexOf(keyword));
-      if (!beforeKeyword.includes("'") || beforeKeyword.split("'").length % 2 === 1) {
-        // Not inside a string literal - additional validation needed
-        if (keyword !== 'CREATE' || !trimmed.startsWith('WITH')) {
-          // Be more careful - only block if it looks like a DML statement
-          const pattern = new RegExp(`(?:^|;)\\s*${keyword}\\b`, 'i');
-          if (pattern.test(sql)) {
-            throw new Error(`Query contains forbidden keyword: ${keyword}. Only SELECT queries are allowed.`);
-          }
-        }
-      }
+    const pattern = new RegExp(`(?:^|;)\\s*${keyword}\\b`, 'i');
+    if (pattern.test(sql)) {
+      throw new Error(`Query contains forbidden keyword: ${keyword}. Only SELECT queries are allowed.`);
     }
   }
 
@@ -67,7 +97,7 @@ export async function executeReadOnlyQuery(sql: string): Promise<{ rows: Record<
  */
 export async function initializeSchema(): Promise<void> {
   const pool = getPool();
-  
+
   await pool.query(`
     -- Deals clean table
     CREATE TABLE IF NOT EXISTS deals_clean (

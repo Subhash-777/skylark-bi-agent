@@ -10,7 +10,6 @@ export function Navbar() {
   const [lastSynced, setLastSynced] = useState<string | null>(null);
 
   useEffect(() => {
-    // Read last sync timestamp if stored
     const saved = localStorage.getItem('skylark_last_synced');
     if (saved) setLastSynced(saved);
   }, []);
@@ -33,8 +32,8 @@ export function Navbar() {
   };
 
   return (
-    <header style={{
-      height: '60px',
+    <header className="no-print" style={{
+      height: '56px',
       background: 'var(--bg-secondary)',
       borderBottom: '1px solid var(--border)',
       display: 'flex',
@@ -45,19 +44,19 @@ export function Navbar() {
       top: 0,
       zIndex: 50,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
         <Link href="/" style={{ textDecoration: 'none' }}>
           <div className="sidebar-logo" style={{ cursor: 'pointer' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
             </svg>
-            <span>Skylark BI Agent</span>
+            <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 700 }}>Skylark BI Agent</span>
           </div>
         </Link>
 
-        <nav style={{ display: 'flex', gap: '8px' }}>
+        <nav style={{ display: 'flex', gap: '4px' }}>
           <Link href="/" className={`nav-link ${pathname === '/' ? 'active' : ''}`} style={{ width: 'auto', padding: '6px 12px' }}>
-            Home
+            Overview
           </Link>
           <Link href="/chat" className={`nav-link ${pathname === '/chat' ? 'active' : ''}`} style={{ width: 'auto', padding: '6px 12px' }}>
             Chat Agent
@@ -72,9 +71,9 @@ export function Navbar() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <div className="sync-status" style={{ fontSize: '12px' }}>
+        <div className="sync-status mono-data" style={{ fontSize: '11px' }}>
           <span className={`sync-dot ${isSyncing ? 'syncing' : ''}`} />
-          <span>{lastSynced ? `Synced at ${lastSynced}` : 'Monday.com Synced'}</span>
+          <span>{lastSynced ? `Synced ${lastSynced}` : 'Monday.com Synced'}</span>
         </div>
 
         <button
@@ -82,8 +81,20 @@ export function Navbar() {
           onClick={handleSync}
           disabled={isSyncing}
           title="Force fresh sync from Monday.com GraphQL API"
+          style={{
+            padding: '5px 10px',
+            background: 'var(--bg-tertiary)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)',
+            fontSize: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13" style={isSyncing ? { animation: 'spin 1s linear infinite' } : {}}>
             <path d="M23 4v6h-6" />
             <path d="M1 20v-6h6" />
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
