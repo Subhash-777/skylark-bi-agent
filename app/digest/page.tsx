@@ -133,7 +133,7 @@ export default function DigestPage() {
 
     // Anomalies
     if (digest.anomalies.length > 0) {
-      md += `## ⚠️ Anomalies\n\n`;
+      md += `## Anomalies\n\n`;
       for (const a of digest.anomalies) {
         md += `- ${a}\n`;
       }
@@ -165,7 +165,7 @@ export default function DigestPage() {
         <div className="digest-container">
           <div className="digest-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h1 className="digest-title">📊 Executive Leadership Digest</h1>
+              <h1 className="digest-title">Executive Leadership Digest</h1>
               <p className="digest-meta">
                 {digest
                   ? `Generated ${new Date(digest.generated_at).toLocaleString()} • ${digest.period}`
@@ -174,19 +174,19 @@ export default function DigestPage() {
             </div>
             <div className="no-print" style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-secondary" onClick={loadDigest} disabled={loading}>
-                {loading ? '⟳ Loading...' : '⟳ Refresh'}
+                {loading ? 'Refreshing...' : 'Refresh'}
               </button>
               <button className="btn btn-secondary" onClick={handlePrint} disabled={!digest}>
-                🖨️ Print / Save PDF
+                Print / Save PDF
               </button>
               <button className="btn btn-primary" onClick={exportMarkdown} disabled={!digest}>
-                📥 Export Markdown
+                Export Markdown
               </button>
             </div>
           </div>
 
           {error && (
-            <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', borderRadius: 8, marginBottom: 24, color: 'var(--danger)' }}>
+            <div style={{ padding: 16, background: 'rgba(239,68,68,0.1)', borderRadius: 4, marginBottom: 24, color: 'var(--status-dead)', fontSize: 13 }}>
               Error: {error}. Make sure data is synced first (click &quot;Refresh Data&quot; in the header).
             </div>
           )}
@@ -206,7 +206,7 @@ export default function DigestPage() {
               <div className="digest-grid">
                 <div className="digest-card">
                   <div className="digest-card-title">Total Won Deals</div>
-                  <div className="digest-card-value" style={{ color: 'var(--success)' }}>
+                  <div className="digest-card-value mono-data" style={{ color: 'var(--status-won)' }}>
                     {formatNumber(digest.revenue_won.total_won_deals)}
                   </div>
                   <div className="digest-card-label">
@@ -216,7 +216,7 @@ export default function DigestPage() {
 
                 <div className="digest-card">
                   <div className="digest-card-title">Total Won Value</div>
-                  <div className="digest-card-value" style={{ color: 'var(--accent-primary)' }}>
+                  <div className="digest-card-value mono-data" style={{ color: 'var(--accent-primary)' }}>
                     {formatCurrency(digest.revenue_won.total_won_value)}
                   </div>
                   <div className="digest-card-label">
@@ -226,7 +226,7 @@ export default function DigestPage() {
 
                 <div className="digest-card">
                   <div className="digest-card-title">Total Work Orders</div>
-                  <div className="digest-card-value" style={{ color: 'var(--info)' }}>
+                  <div className="digest-card-value mono-data" style={{ color: 'var(--status-info)' }}>
                     {formatNumber(digest.ar_summary.total_work_orders)}
                   </div>
                   <div className="digest-card-label">
@@ -236,7 +236,7 @@ export default function DigestPage() {
 
                 <div className="digest-card">
                   <div className="digest-card-title">Total Receivable</div>
-                  <div className="digest-card-value" style={{ color: 'var(--warning)' }}>
+                  <div className="digest-card-value mono-data" style={{ color: 'var(--status-hold)' }}>
                     {formatCurrency(digest.ar_summary.total_receivable)}
                   </div>
                   <div className="digest-card-label">
@@ -249,7 +249,7 @@ export default function DigestPage() {
               {/* Anomalies */}
               {digest.anomalies.length > 0 && (
                 <div className="digest-section">
-                  <h2 className="digest-section-title" style={{ color: 'var(--warning)' }}>⚠️ Anomalies Detected</h2>
+                  <h2 className="digest-section-title" style={{ color: 'var(--status-hold)' }}>Anomalies Detected</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {digest.anomalies.map((a, i) => (
                       <div key={i} className="coverage-note" style={{ margin: 0 }}>
@@ -263,24 +263,24 @@ export default function DigestPage() {
               {/* Work Order Execution */}
               <div className="digest-section">
                 <h2 className="digest-section-title">Work Order Execution Status</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table>
                   <thead>
                     <tr>
-                      <th style={{ padding: '10px 16px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-accent)', fontSize: 13 }}>Status</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'right', borderBottom: '1px solid var(--border)', color: 'var(--text-accent)', fontSize: 13 }}>Count</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'right', borderBottom: '1px solid var(--border)', color: 'var(--text-accent)', fontSize: 13 }}>Total Amount</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Count</th>
+                      <th style={{ textAlign: 'right' }}>Total Amount</th>
                     </tr>
                   </thead>
                   <tbody>
                     {digest.work_order_execution.map((row, i) => (
                       <tr key={i}>
-                        <td style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+                        <td style={{ fontSize: 13 }}>
                           {row.execution_status || '(blank)'}
                         </td>
-                        <td style={{ padding: '10px 16px', textAlign: 'right', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+                        <td className="mono-data" style={{ textAlign: 'right', fontSize: 13 }}>
                           {row.count}
                         </td>
-                        <td style={{ padding: '10px 16px', textAlign: 'right', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+                        <td className="mono-data" style={{ textAlign: 'right', fontSize: 13 }}>
                           {formatCurrency(row.total_amount)}
                         </td>
                       </tr>
@@ -291,27 +291,27 @@ export default function DigestPage() {
 
               {/* Top Stalled Deals */}
               <div className="digest-section">
-                <h2 className="digest-section-title">🔴 Top Stalled Deals (Open, Not Progressing)</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <h2 className="digest-section-title">Top Stalled Deals (Open, Not Progressing)</h2>
+                <table>
                   <thead>
                     <tr>
                       {['Deal', 'Owner', 'Client', 'Stage', 'Sector', 'Days Open', 'Value'].map(h => (
-                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-accent)', fontSize: 12 }}>{h}</th>
+                        <th key={h}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {digest.top_stalled_deals.map((deal, i) => (
                       <tr key={i}>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{deal.deal_name}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{deal.owner_code}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{deal.client_code}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{deal.deal_stage}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{deal.sector_service}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13, color: parseInt(deal.days_since_created) > 180 ? 'var(--danger)' : 'var(--warning)' }}>
+                        <td style={{ fontSize: 13 }}>{deal.deal_name}</td>
+                        <td className="mono-data" style={{ fontSize: 12 }}>{deal.owner_code}</td>
+                        <td className="mono-data" style={{ fontSize: 12 }}>{deal.client_code}</td>
+                        <td style={{ fontSize: 13 }}>{deal.deal_stage}</td>
+                        <td style={{ fontSize: 13 }}>{deal.sector_service}</td>
+                        <td className="mono-data" style={{ fontSize: 13, color: parseInt(deal.days_since_created) > 180 ? 'var(--status-dead)' : 'var(--status-hold)' }}>
                           {deal.days_since_created}d
                         </td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{formatCurrency(deal.masked_deal_value)}</td>
+                        <td className="mono-data" style={{ fontSize: 13 }}>{formatCurrency(deal.masked_deal_value)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -321,30 +321,30 @@ export default function DigestPage() {
               {/* Pipeline by Sector */}
               <div className="digest-section">
                 <h2 className="digest-section-title">Pipeline by Sector</h2>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table>
                   <thead>
                     <tr>
                       {['Sector', 'Status', 'Count', 'Total Value', 'With Value'].map(h => (
-                        <th key={h} style={{ padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-accent)', fontSize: 12 }}>{h}</th>
+                        <th key={h}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {digest.pipeline_by_sector.map((row, i) => (
                       <tr key={i}>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{row.sector_service}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <td style={{ fontSize: 13 }}>{row.sector_service}</td>
+                        <td style={{ fontSize: 13 }}>
                           <span style={{
-                            padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600,
-                            background: row.deal_status === 'Won' ? 'rgba(34,197,94,0.15)' : row.deal_status === 'Open' ? 'rgba(59,130,246,0.15)' : row.deal_status === 'Dead' ? 'rgba(239,68,68,0.15)' : 'rgba(234,179,8,0.15)',
-                            color: row.deal_status === 'Won' ? 'var(--success)' : row.deal_status === 'Open' ? 'var(--accent-primary)' : row.deal_status === 'Dead' ? 'var(--danger)' : 'var(--warning)',
+                            padding: '2px 8px', borderRadius: 2, fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)',
+                            background: row.deal_status === 'Won' ? 'rgba(16,185,129,0.15)' : row.deal_status === 'Open' ? 'rgba(255,107,0,0.15)' : row.deal_status === 'Dead' ? 'rgba(239,68,68,0.15)' : 'rgba(234,179,8,0.15)',
+                            color: row.deal_status === 'Won' ? 'var(--status-won)' : row.deal_status === 'Open' ? 'var(--accent-primary)' : row.deal_status === 'Dead' ? 'var(--status-dead)' : 'var(--status-hold)',
                           }}>
                             {row.deal_status}
                           </span>
                         </td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{row.count}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{formatCurrency(row.total_value)}</td>
-                        <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>{row.deals_with_value}</td>
+                        <td className="mono-data" style={{ fontSize: 13 }}>{row.count}</td>
+                        <td className="mono-data" style={{ fontSize: 13 }}>{formatCurrency(row.total_value)}</td>
+                        <td className="mono-data" style={{ fontSize: 13 }}>{row.deals_with_value}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -353,7 +353,7 @@ export default function DigestPage() {
 
               {/* Data Quality Notes */}
               <div className="digest-section">
-                <h2 className="digest-section-title">📋 Data Quality Notes</h2>
+                <h2 className="digest-section-title">Data Quality Notes</h2>
                 {digest.data_quality_notes.map((note, i) => (
                   <div key={i} className="coverage-note" style={{ marginBottom: 8, marginTop: 0 }}>
                     {note}

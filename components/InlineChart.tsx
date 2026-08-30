@@ -58,8 +58,8 @@ export function InlineChart({ data, title }: ChartProps) {
   return (
     <div className="chart-container" style={{ margin: '16px 0', padding: '16px', background: 'var(--bg-primary)', borderRadius: '12px', border: '1px solid var(--border)' }}>
       {title && (
-        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-accent)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>📊</span> {title}
+        <div style={{ fontSize: '12px', fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-accent)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>DATA VISUALIZATION //</span> {title}
         </div>
       )}
       <div style={{ width: '100%', height: 220 }}>

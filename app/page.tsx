@@ -59,7 +59,7 @@ export default function LandingPage() {
             color: 'var(--accent-primary)',
             marginBottom: '20px',
           }}>
-            <span>⚡</span> SKYLARK DRONES • FIELD-OPS BI ENGINE
+            SKYLARK DRONES • FIELD-OPS BI ENGINE
           </div>
 
           <h1 style={{
@@ -85,13 +85,13 @@ export default function LandingPage() {
 
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/chat" className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '14px' }}>
-              Launch Chat Agent 🚀
+              Launch Chat Agent
             </Link>
             <Link href="/digest" className="btn btn-secondary" style={{ padding: '10px 24px', fontSize: '14px' }}>
-              View Leadership Digest 📊
+              View Leadership Digest
             </Link>
             <Link href="/about" className="btn btn-ghost" style={{ padding: '10px 24px', fontSize: '14px' }}>
-              How It Works (Architecture) 📖
+              How It Works (Architecture)
             </Link>
           </div>
         </section>
@@ -133,7 +133,7 @@ export default function LandingPage() {
               <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>Click any prompt chip to execute directly in the live agent chat</p>
             </div>
             <Link href="/chat" style={{ color: 'var(--accent-primary)', fontSize: '13px', textDecoration: 'none', fontFamily: 'var(--font-mono)' }}>
-              All Prompts ➔
+              All Prompts →
             </Link>
           </div>
 
@@ -156,7 +156,7 @@ export default function LandingPage() {
                   <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', fontWeight: 600, padding: '2px 6px', borderRadius: '2px', background: 'rgba(255,107,0,0.12)', color: 'var(--accent-primary)' }}>
                     {q.badge}
                   </span>
-                  <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>➔</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>→</span>
                 </div>
                 <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>
                   &quot;{q.query}&quot;
@@ -183,7 +183,7 @@ export default function LandingPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
             <div>
-              <div style={{ fontSize: '18px', color: 'var(--accent-primary)', marginBottom: '6px', fontFamily: 'var(--font-mono)' }}>01 // SQL CODE EXECUTION</div>
+              <div style={{ fontSize: '13px', color: 'var(--accent-primary)', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>01 // SQL CODE EXECUTION</div>
               <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>Postgres Code Execution</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 Prompt-stuffing 500+ raw records causes severe math errors. Our agent writes SELECT queries against Postgres to guarantee exact sums and counts.
@@ -191,7 +191,7 @@ export default function LandingPage() {
             </div>
 
             <div>
-              <div style={{ fontSize: '18px', color: 'var(--accent-primary)', marginBottom: '6px', fontFamily: 'var(--font-mono)' }}>02 // TRUST &amp; FOOTNOTES</div>
+              <div style={{ fontSize: '13px', color: 'var(--accent-primary)', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>02 // TRUST &amp; FOOTNOTES</div>
               <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>Completeness Footnotes</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 Every financial figure surfaces explicit null coverage (e.g. &quot;Masked Deal Value populated in 48% of deals&quot;), preventing misleading decisions.
@@ -199,7 +199,7 @@ export default function LandingPage() {
             </div>
 
             <div>
-              <div style={{ fontSize: '18px', color: 'var(--accent-primary)', marginBottom: '6px', fontFamily: 'var(--font-mono)' }}>03 // ANOMALY DETECTION</div>
+              <div style={{ fontSize: '13px', color: 'var(--accent-primary)', marginBottom: '6px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>03 // ANOMALY DETECTION</div>
               <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '6px' }}>Proactive Anomaly Alerts</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 Automatically highlights data hygiene issues like Won deals missing Close Date or work orders marked billed with zero collected amount.

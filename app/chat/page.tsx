@@ -53,16 +53,15 @@ function ChatContent() {
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-    setLoadingStage('🔍 Inspecting Schema & Planning Query...');
+    setLoadingStage('[1/3] Inspecting Schema & Planning Query...');
 
     try {
-      // Simulate status updates for UI feedback
       const timer = setTimeout(() => {
-        setLoadingStage('⚙️ Executing SQL Query on Supabase Postgres...');
+        setLoadingStage('[2/3] Executing SQL Query on Supabase Postgres...');
       }, 1200);
 
       const timer2 = setTimeout(() => {
-        setLoadingStage('📊 Formatting Insights & Trust Footnotes...');
+        setLoadingStage('[3/3] Formatting Insights & Trust Footnotes...');
       }, 2400);
 
       const currentMsgs = [...messages, userMessage];
@@ -83,7 +82,7 @@ function ChatContent() {
       if (data.error) {
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Sorry, I encountered an error: ${data.error}. Please try again.`,
+          content: `Error: ${data.error}. Please try again.`,
         }]);
       } else {
         setMessages(prev => [...prev, {
@@ -95,14 +94,13 @@ function ChatContent() {
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Connection error: ${err}. Please check if the server is running.`,
+        content: `Connection error: ${err}. Please check network.`,
       }]);
     } finally {
       setIsLoading(false);
     }
   }, [messages, isLoading]);
 
-  // Handle URL pre-filled query (e.g., /chat?q=...)
   useEffect(() => {
     if (initialUrlHandled.current) return;
     const initialQuery = searchParams.get('q');
@@ -124,7 +122,6 @@ function ChatContent() {
     setExpandedTools(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Helper to extract numeric data from tool calls for rendering charts
   const extractChartData = (toolCalls?: ToolCall[]) => {
     if (!toolCalls) return null;
     const queryCall = toolCalls.find(tc => tc.tool === 'run_query' && tc.resultPreview);
@@ -147,15 +144,14 @@ function ChatContent() {
           {messages.length === 0 && (
             <div className="welcome-container">
               <div className="welcome-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                 </svg>
               </div>
               <h1 className="welcome-title">Skylark BI Agent</h1>
               <p className="welcome-subtitle">
-                I&apos;m your AI-powered business intelligence assistant. Ask any question about your deals pipeline
-                or work orders — I&apos;ll generate and run SELECT queries against your monday.com Postgres mirror,
-                surface explicit null-coverage notes, and show exact SQL audit trails.
+                AI-powered business intelligence assistant. Ask any question about deals pipeline
+                or work orders — all answers are generated via read-only SQL queries against your monday.com Postgres mirror with explicit data coverage footnotes.
               </p>
               <div className="suggested-questions">
                 {SUGGESTED_QUESTIONS.map((q, i) => (
@@ -177,7 +173,7 @@ function ChatContent() {
             return (
               <div key={msgIdx} className={`message ${msg.role}`}>
                 <div className="message-avatar">
-                  {msg.role === 'user' ? 'U' : '⚡'}
+                  {msg.role === 'user' ? 'U' : 'AI'}
                 </div>
                 <div className="message-content">
                   {msg.toolCalls && msg.toolCalls.length > 0 && (
@@ -188,12 +184,12 @@ function ChatContent() {
                             className="tool-call"
                             onClick={() => toggleToolDetail(msgIdx, toolIdx)}
                           >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                               <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
                             </svg>
                             {tc.tool === 'run_query' ? `SQL Query Executed` : tc.tool === 'get_schema' ? 'Schema Inspected' : tc.tool === 'list_known_data_issues' ? 'Data Quality Inspected' : tc.tool === 'build_digest' ? 'Digest Built' : tc.tool}
                             {tc.tool === 'run_query' && typeof tc.args?.sql === 'string' && (
-                              <span style={{ opacity: 0.7, marginLeft: 6, fontSize: '11px' }}>[Click to view SQL]</span>
+                              <span style={{ opacity: 0.7, marginLeft: 6, fontSize: '11px', fontFamily: 'var(--font-mono)' }}>[Click to view SQL]</span>
                             )}
                           </div>
                           <div className={`tool-call-detail ${expandedTools[`${msgIdx}-${toolIdx}`] ? 'expanded' : ''}`}>
@@ -211,9 +207,8 @@ function ChatContent() {
                     </div>
                   )}
 
-                  {/* Render Recharts chart if query contains structured tabular result */}
                   {chartData && (
-                    <InlineChart data={chartData} title="Query Insights Visualization" />
+                    <InlineChart data={chartData} title="Visualization" />
                   )}
 
                   <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -224,9 +219,9 @@ function ChatContent() {
 
           {isLoading && (
             <div className="message assistant">
-              <div className="message-avatar">⚡</div>
+              <div className="message-avatar">AI</div>
               <div className="message-content">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
                   <div className="loading-dots">
                     <span /><span /><span />
                   </div>
@@ -256,7 +251,7 @@ function ChatContent() {
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || isLoading}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
@@ -288,7 +283,7 @@ export default function ChatPage() {
       <Navbar />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <Suspense fallback={
-          <div style={{ padding: 40, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+          <div style={{ padding: 40, color: 'var(--text-tertiary)', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>
             Loading Chat Agent...
           </div>
         }>
